@@ -175,6 +175,7 @@ export default function AIRADashboard() {
           // Formato esperado del ESP32 (streaming muestra a muestra):
           //   { "time": 0.1, "mq2": 1.5, "mq135": 2.0, "mq9": 1.2 }
           // También se acepta un lote: { "data": [ {...}, {...} ] }
+          console.log('[v0] WS mensaje recibido:', event.data, '| adquiriendo:', isAcquiringRef.current)
           const payload = JSON.parse(event.data)
 
           // Solo guardamos datos mientras se está realizando una adquisición
@@ -187,7 +188,7 @@ export default function AIRADashboard() {
             setSensorData((prev) => [...prev, parseSample(payload)])
           }
         } catch (error) {
-          console.log('[v0] Error al parsear el mensaje del WebSocket:', error)
+          console.log('[v0] Error al parsear el mensaje del WebSocket:', error, '| raw:', event.data)
         }
       }
     }

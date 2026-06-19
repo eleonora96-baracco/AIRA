@@ -41,6 +41,11 @@ export function AcquisitionView({
   const progress = ((10 - countdown) / 10) * 100
   const circumference = 2 * Math.PI * 80
 
+  // Live readout (real mode): number of samples received and latest values
+  const isReal = operatingMode === 'real'
+  const sampleCount = sensorData.length
+  const latest = sampleCount > 0 ? sensorData[sampleCount - 1] : null
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -110,6 +115,45 @@ export function AcquisitionView({
             </Card>
           </div>
 
+          {/* Live readout (real mode) */}
+          {isReal && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Card className="border-primary/30 bg-primary/5">
+                <CardContent className="flex flex-col items-center justify-center py-4">
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${sampleCount > 0 ? 'bg-[#4A7C59] animate-pulse' : 'bg-muted-foreground'}`} />
+                    <span className="text-2xl font-bold tabular-nums text-foreground">{sampleCount}</span>
+                  </div>
+                  <span className="mt-1 text-xs text-muted-foreground">Muestras recibidas</span>
+                </CardContent>
+              </Card>
+              <Card className="border-border/50">
+                <CardContent className="flex flex-col items-center justify-center py-4">
+                  <span className="text-2xl font-bold tabular-nums text-foreground">
+                    {latest ? latest.mq2.toFixed(2) : '—'}
+                  </span>
+                  <span className="mt-1 text-xs text-muted-foreground">MQ-2</span>
+                </CardContent>
+              </Card>
+              <Card className="border-border/50">
+                <CardContent className="flex flex-col items-center justify-center py-4">
+                  <span className="text-2xl font-bold tabular-nums text-foreground">
+                    {latest ? latest.mq135.toFixed(2) : '—'}
+                  </span>
+                  <span className="mt-1 text-xs text-muted-foreground">MQ-135</span>
+                </CardContent>
+              </Card>
+              <Card className="border-border/50">
+                <CardContent className="flex flex-col items-center justify-center py-4">
+                  <span className="text-2xl font-bold tabular-nums text-foreground">
+                    {latest ? latest.mq9.toFixed(2) : '—'}
+                  </span>
+                  <span className="mt-1 text-xs text-muted-foreground">MQ-9</span>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
           {/* Sensor Chart */}
           <Card className="border-border/50 shadow-lg">
             <CardHeader className="pb-2">
@@ -127,14 +171,16 @@ export function AcquisitionView({
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
                   <XAxis
                     dataKey="time"
-                    tickFormatter={(value) => `${value.toFixed(1)}s`}
+                    type="number"
+                    domain={isReal ? ['dataMin', 'dataMax'] : [0, 'dataMax']}
+                    tickFormatter={(value) => `${Number(value).toFixed(1)}s`}
                     tick={{ fontSize: 12 }}
                     tickLine={false}
                     axisLine={false}
                     label={{ value: 'Tiempo (s)', position: 'insideBottom', offset: -10, fontSize: 12 }}
                   />
                   <YAxis
-                    domain={[0, simulationMode === 'risk' ? 12 : 5]}
+                    domain={isReal ? [0, 'auto'] : [0, simulationMode === 'risk' ? 12 : 5]}
                     tick={{ fontSize: 12 }}
                     tickLine={false}
                     axisLine={false}
