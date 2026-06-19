@@ -14,7 +14,7 @@ import { ConsentView } from '@/components/aira/consent-view'
 // Cambia esta IP por la de tu ESP32 en la red local.
 // La ruta /ws es el endpoint WebSocket del firmware.
 // =====================================================
-const ESP32_IP = '192.168.1.100'
+const ESP32_IP = '192.168.1.112'
 const ESP32_WS_PATH = '/ws'
 
 export type AppView = 'mode-select' | 'login' | 'dashboard' | 'consent' | 'acquisition' | 'verdict'
