@@ -1,6 +1,6 @@
 'use client'
 
-import type { SensorDataPoint, SimulationMode } from '@/app/page'
+import type { SensorDataPoint, SimulationMode, OperatingMode } from '@/app/page'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
@@ -11,6 +11,7 @@ interface AcquisitionViewProps {
   countdown: number
   sensorData: SensorDataPoint[]
   simulationMode: SimulationMode
+  operatingMode: OperatingMode
   onSimulate: (mode: 'healthy' | 'risk') => void
 }
 
@@ -33,6 +34,7 @@ export function AcquisitionView({
   countdown,
   sensorData,
   simulationMode,
+  operatingMode,
   onSimulate,
 }: AcquisitionViewProps) {
   // Calculate progress percentage
@@ -183,7 +185,8 @@ export function AcquisitionView({
             </CardContent>
           </Card>
 
-          {/* Simulation Controls */}
+          {/* Simulation Controls — only available in academic mode */}
+          {operatingMode === 'academic' && (
           <Card className="border-border/50 bg-muted/30">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -214,6 +217,7 @@ export function AcquisitionView({
               </p>
             </CardContent>
           </Card>
+          )}
         </div>
       </main>
     </div>

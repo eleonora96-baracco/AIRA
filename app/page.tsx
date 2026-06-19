@@ -2,14 +2,17 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
+import { ModeSelectionView } from '@/components/aira/mode-selection-view'
 import { LoginView } from '@/components/aira/login-view'
 import { DashboardView } from '@/components/aira/dashboard-view'
 import { AcquisitionView } from '@/components/aira/acquisition-view'
 import { VerdictView } from '@/components/aira/verdict-view'
 import { ConsentView } from '@/components/aira/consent-view'
 
-export type AppView = 'login' | 'dashboard' | 'consent' | 'acquisition' | 'verdict'
+export type AppView = 'mode-select' | 'login' | 'dashboard' | 'consent' | 'acquisition' | 'verdict'
 export type SimulationMode = 'healthy' | 'risk' | null
+// 'academic' = sin dispositivo (datos simulados) · 'real' = dispositivo + WebSocket activo
+export type OperatingMode = 'academic' | 'real' | null
 
 export interface PatientData {
   cip: string
@@ -26,7 +29,8 @@ export interface SensorDataPoint {
 }
 
 export default function AIRADashboard() {
-  const [currentView, setCurrentView] = useState<AppView>('login')
+  const [currentView, setCurrentView] = useState<AppView>('mode-select')
+  const [operatingMode, setOperatingMode] = useState<OperatingMode>(null)
   const [patientData, setPatientData] = useState<PatientData>({
     cip: '',
     edad: '',
@@ -86,14 +90,31 @@ export default function AIRADashboard() {
     }
   }, [currentView, countdown])
 
-  // WebSocket connection for real ESP32 hardware (commented for mockup)
+  // Device / WebSocket connection — behaviour depends on the selected operating mode
   useEffect(() => {
+    // No mode selected yet (still on mode-select screen)
+    if (!operatingMode) {
+      setIsDeviceConnected(false)
+      return
+    }
+
+    // =====================================================
+    // ACADEMIC MODE: no physical device, data is simulated.
+    // We mark the device as "connected" so the workflow can run.
+    // =====================================================
+    if (operatingMode === 'academic') {
+      const connectionTimer = setTimeout(() => {
+        setIsDeviceConnected(true)
+      }, 1500)
+
+      return () => clearTimeout(connectionTimer)
+    }
+
+    // =====================================================
+    // REAL MODE: WebSocket connection to ESP32 hardware.
+    // Uncomment the block below when connecting to real hardware.
+    // =====================================================
     /*
-    // =====================================================
-    // HARDWARE READY: WebSocket connection to ESP32
-    // Uncomment this block when connecting to real hardware
-    // =====================================================
-    
     const WS_URL = 'ws://192.168.1.XX/ws' // Replace XX with your ESP32 IP
     
     let ws: WebSocket | null = null
@@ -151,13 +172,16 @@ export default function AIRADashboard() {
     }
     */
 
-    // Simulated device connection for demo
-    const connectionTimer = setTimeout(() => {
-      setIsDeviceConnected(true)
-    }, 1500)
+    // Until the real hardware block above is enabled, the device stays
+    // disconnected in real mode (awaiting the ESP32 WebSocket).
+    setIsDeviceConnected(false)
+  }, [operatingMode])
 
-    return () => clearTimeout(connectionTimer)
-  }, [])
+  // Handle operating mode selection (before login)
+  const handleSelectMode = (mode: OperatingMode) => {
+    setOperatingMode(mode)
+    setCurrentView('login')
+  }
 
   // Handle login
   const handleLogin = () => {
@@ -200,23 +224,29 @@ export default function AIRADashboard() {
     setCurrentView('dashboard')
   }
 
-  // Handle logout
+  // Handle logout — returns to mode selection so the operating mode can be re-chosen
   const handleLogout = () => {
     setPatientData({ cip: '', edad: '', genero: '', tabaquismo: false })
     setSensorData([])
     setSimulationMode(null)
-    setCurrentView('login')
+    setOperatingMode(null)
+    setCurrentView('mode-select')
   }
 
   return (
     <div className="min-h-screen bg-background">
-      {currentView === 'login' && <LoginView onLogin={handleLogin} />}
+      {currentView === 'mode-select' && <ModeSelectionView onSelectMode={handleSelectMode} />}
+
+      {currentView === 'login' && (
+        <LoginView operatingMode={operatingMode} onLogin={handleLogin} onBack={handleLogout} />
+      )}
       
       {currentView === 'dashboard' && (
         <DashboardView
           patientData={patientData}
           setPatientData={setPatientData}
           isDeviceConnected={isDeviceConnected}
+          operatingMode={operatingMode}
           onStartScreening={handleStartScreening}
           onLogout={handleLogout}
         />
@@ -235,6 +265,7 @@ export default function AIRADashboard() {
           countdown={countdown}
           sensorData={sensorData}
           simulationMode={simulationMode}
+          operatingMode={operatingMode}
           onSimulate={handleSimulate}
         />
       )}

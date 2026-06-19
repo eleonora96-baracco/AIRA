@@ -1,18 +1,23 @@
 'use client'
 
 import { useState } from 'react'
+import type { OperatingMode } from '@/app/page'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Wind, Lock, User } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Wind, Lock, User, GraduationCap, Cpu, ArrowLeft } from 'lucide-react'
 
 interface LoginViewProps {
+  operatingMode: OperatingMode
   onLogin: () => void
+  onBack: () => void
 }
 
-export function LoginView({ onLogin }: LoginViewProps) {
+export function LoginView({ operatingMode, onLogin, onBack }: LoginViewProps) {
   const [credentials, setCredentials] = useState({ id: '', password: '' })
+  const isAcademic = operatingMode === 'academic'
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
@@ -28,6 +33,18 @@ export function LoginView({ onLogin }: LoginViewProps) {
               Sistema de Cribado Pulmonar No Invasivo
             </p>
           </div>
+
+          {/* Selected operating mode indicator */}
+          {operatingMode && (
+            <Badge variant="secondary" className="gap-2 px-3 py-1 text-sm">
+              {isAcademic ? (
+                <GraduationCap className="h-4 w-4" />
+              ) : (
+                <Cpu className="h-4 w-4" />
+              )}
+              {isAcademic ? 'Modo Académico · sin dispositivo' : 'Modo Real · dispositivo conectado'}
+            </Badge>
+          )}
         </div>
 
         {/* Login Card */}
@@ -81,6 +98,17 @@ export function LoginView({ onLogin }: LoginViewProps) {
                 size="lg"
               >
                 Acceder
+              </Button>
+
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={onBack}
+                className="w-full"
+                size="sm"
+              >
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                Cambiar modo de funcionamiento
               </Button>
             </div>
 
