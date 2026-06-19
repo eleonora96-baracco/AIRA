@@ -115,7 +115,7 @@ export default function AIRADashboard() {
     // Uncomment the block below when connecting to real hardware.
     // =====================================================
     /*
-    const WS_URL = 'ws://192.168.1.XX/ws' // Replace XX with your ESP32 IP
+    const WS_URL = 'ws://192.168.1.112/ws' // Replace XX with your ESP32 IP
     
     let ws: WebSocket | null = null
     
