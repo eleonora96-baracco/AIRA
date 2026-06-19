@@ -11,11 +11,13 @@ import { ConsentView } from '@/components/aira/consent-view'
 
 // =====================================================
 // HARDWARE CONFIG (modalidad "real")
-// Cambia esta IP por la de tu ESP32 en la red local.
-// La ruta /ws es el endpoint WebSocket del firmware.
+// Cambia estos valores por los de tu ESP32 en la red local.
+// El firmware usa un "Servidor WebSocket Nativo" (arduinoWebSockets)
+// que escucha en el puerto 81 y en la ruta raíz "/".
 // =====================================================
 const ESP32_IP = '192.168.1.112'
-const ESP32_WS_PATH = '/ws'
+const ESP32_WS_PORT = 81
+const ESP32_WS_PATH = '/'
 
 export type AppView = 'mode-select' | 'login' | 'dashboard' | 'consent' | 'acquisition' | 'verdict'
 export type SimulationMode = 'healthy' | 'risk' | null
@@ -132,7 +134,7 @@ export default function AIRADashboard() {
     // (a secure page cannot open an insecure ws:// socket - mixed content).
     const wsProtocol =
       typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const WS_URL = `${wsProtocol}://${ESP32_IP}${ESP32_WS_PATH}`
+    const WS_URL = `${wsProtocol}://${ESP32_IP}:${ESP32_WS_PORT}${ESP32_WS_PATH}`
 
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let closedByCleanup = false
