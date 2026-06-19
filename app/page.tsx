@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 import { ModeSelectionView } from '@/components/aira/mode-selection-view'
 import { LoginView } from '@/components/aira/login-view'
@@ -8,6 +8,14 @@ import { DashboardView } from '@/components/aira/dashboard-view'
 import { AcquisitionView } from '@/components/aira/acquisition-view'
 import { VerdictView } from '@/components/aira/verdict-view'
 import { ConsentView } from '@/components/aira/consent-view'
+
+// =====================================================
+// HARDWARE CONFIG (modalidad "real")
+// Cambia esta IP por la de tu ESP32 en la red local.
+// La ruta /ws es el endpoint WebSocket del firmware.
+// =====================================================
+const ESP32_IP = '192.168.1.100'
+const ESP32_WS_PATH = '/ws'
 
 export type AppView = 'mode-select' | 'login' | 'dashboard' | 'consent' | 'acquisition' | 'verdict'
 export type SimulationMode = 'healthy' | 'risk' | null
@@ -41,6 +49,10 @@ export default function AIRADashboard() {
   const [simulationMode, setSimulationMode] = useState<SimulationMode>(null)
   const [countdown, setCountdown] = useState(10)
   const [isDeviceConnected, setIsDeviceConnected] = useState(false)
+
+  // Refs para la conexión WebSocket en modalidad "real"
+  const wsRef = useRef<WebSocket | null>(null)
+  const isAcquiringRef = useRef(false)
 
   // Generate mock sensor data based on simulation mode
   const generateSensorData = useCallback((mode: SimulationMode): SensorDataPoint[] => {
@@ -85,7 +97,8 @@ export default function AIRADashboard() {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
       return () => clearTimeout(timer)
     } else {
-      // Countdown finished - transition to verdict
+      // Countdown finished - stop collecting samples and transition to verdict
+      isAcquiringRef.current = false
       setCurrentView('verdict')
     }
   }, [currentView, countdown])
@@ -111,70 +124,83 @@ export default function AIRADashboard() {
     }
 
     // =====================================================
-    // REAL MODE: WebSocket connection to ESP32 hardware.
-    // Uncomment the block below when connecting to real hardware.
+    // REAL MODE: live WebSocket connection to the ESP32.
+    // Streams one sample per message and appends it to the chart
+    // while a screening acquisition is in progress.
     // =====================================================
-    /*
-    const WS_URL = 'ws://192.168.1.112/ws' // Replace XX with your ESP32 IP
-    
-    let ws: WebSocket | null = null
-    
+    // ws:// for local HTTP, wss:// when the app is served over HTTPS
+    // (a secure page cannot open an insecure ws:// socket - mixed content).
+    const wsProtocol =
+      typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss' : 'ws'
+    const WS_URL = `${wsProtocol}://${ESP32_IP}${ESP32_WS_PATH}`
+
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+    let closedByCleanup = false
+
+    const parseSample = (entry: any): SensorDataPoint => ({
+      time: parseFloat(entry.time) || 0,
+      mq2: parseFloat(entry.mq2) || 0,
+      mq135: parseFloat(entry.mq135) || 0,
+      mq9: parseFloat(entry.mq9) || 0,
+    })
+
     const connectWebSocket = () => {
-      ws = new WebSocket(WS_URL)
-      
+      console.log('[v0] Conectando al ESP32:', WS_URL)
+      const ws = new WebSocket(WS_URL)
+      wsRef.current = ws
+
       ws.onopen = () => {
-        console.log('[AIRA] WebSocket connected to ESP32')
+        console.log('[v0] WebSocket conectado al ESP32')
         setIsDeviceConnected(true)
       }
-      
+
       ws.onclose = () => {
-        console.log('[AIRA] WebSocket disconnected')
+        console.log('[v0] WebSocket desconectado')
         setIsDeviceConnected(false)
-        // Attempt reconnection after 3 seconds
-        setTimeout(connectWebSocket, 3000)
+        if (!closedByCleanup) {
+          // Reintenta la conexión cada 3 segundos
+          reconnectTimer = setTimeout(connectWebSocket, 3000)
+        }
       }
-      
+
       ws.onerror = (error) => {
-        console.error('[AIRA] WebSocket error:', error)
+        console.log('[v0] Error de WebSocket:', error)
         setIsDeviceConnected(false)
       }
-      
+
       ws.onmessage = (event) => {
         try {
-          // Expected JSON format from ESP32:
-          // { "data": [{ "time": 0.1, "mq2": 1.5, "mq135": 2.0, "mq9": 1.2 }, ...] }
-          // The payload should contain ~100 entries for a 10-second reading
+          // Formato esperado del ESP32 (streaming muestra a muestra):
+          //   { "time": 0.1, "mq2": 1.5, "mq135": 2.0, "mq9": 1.2 }
+          // También se acepta un lote: { "data": [ {...}, {...} ] }
           const payload = JSON.parse(event.data)
-          
+
+          // Solo guardamos datos mientras se está realizando una adquisición
+          if (!isAcquiringRef.current) return
+
           if (payload.data && Array.isArray(payload.data)) {
-            const parsedData: SensorDataPoint[] = payload.data.map((entry: any) => ({
-              time: parseFloat(entry.time) || 0,
-              mq2: parseFloat(entry.mq2) || 0,
-              mq135: parseFloat(entry.mq135) || 0,
-              mq9: parseFloat(entry.mq9) || 0,
-            }))
-            
-            setSensorData(parsedData)
-            console.log('[AIRA] Received sensor data:', parsedData.length, 'entries')
+            const batch = payload.data.map(parseSample)
+            setSensorData((prev) => [...prev, ...batch])
+          } else {
+            setSensorData((prev) => [...prev, parseSample(payload)])
           }
         } catch (error) {
-          console.error('[AIRA] Error parsing WebSocket message:', error)
+          console.log('[v0] Error al parsear el mensaje del WebSocket:', error)
         }
       }
     }
-    
-    connectWebSocket()
-    
-    return () => {
-      if (ws) {
-        ws.close()
-      }
-    }
-    */
 
-    // Until the real hardware block above is enabled, the device stays
-    // disconnected in real mode (awaiting the ESP32 WebSocket).
-    setIsDeviceConnected(false)
+    connectWebSocket()
+
+    return () => {
+      closedByCleanup = true
+      if (reconnectTimer) clearTimeout(reconnectTimer)
+      if (wsRef.current) {
+        wsRef.current.close()
+        wsRef.current = null
+      }
+      setIsDeviceConnected(false)
+    }
   }, [operatingMode])
 
   // Handle operating mode selection (before login)
@@ -200,8 +226,14 @@ export default function AIRADashboard() {
   // Handle consent accepted - begin the acquisition
   const handleConsentAccept = () => {
     setCountdown(10)
-    setSensorData(generateSensorData(null))
     setSimulationMode(null)
+    if (operatingMode === 'real') {
+      // Real mode: start with an empty chart and let the ESP32 stream fill it
+      setSensorData([])
+      isAcquiringRef.current = true
+    } else {
+      setSensorData(generateSensorData(null))
+    }
     setCurrentView('acquisition')
   }
 
@@ -218,6 +250,7 @@ export default function AIRADashboard() {
 
   // Handle new screening (reset)
   const handleNewScreening = () => {
+    isAcquiringRef.current = false
     setPatientData({ cip: '', edad: '', genero: '', tabaquismo: false })
     setSensorData([])
     setSimulationMode(null)
@@ -226,6 +259,7 @@ export default function AIRADashboard() {
 
   // Handle logout — returns to mode selection so the operating mode can be re-chosen
   const handleLogout = () => {
+    isAcquiringRef.current = false
     setPatientData({ cip: '', edad: '', genero: '', tabaquismo: false })
     setSensorData([])
     setSimulationMode(null)
