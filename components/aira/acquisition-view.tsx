@@ -5,13 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend } from 'recharts'
-import { Wind, Activity, Heart, AlertTriangle } from 'lucide-react'
+import { Wind, Activity, Heart, AlertTriangle, Play, Cpu } from 'lucide-react'
 
 interface AcquisitionViewProps {
   countdown: number
   sensorData: SensorDataPoint[]
   simulationMode: SimulationMode
   operatingMode: OperatingMode
+  testStarted: boolean
+  isDeviceConnected: boolean
+  onStartTest: () => void
   onSimulate: (mode: 'healthy' | 'risk') => void
 }
 
@@ -35,6 +38,9 @@ export function AcquisitionView({
   sensorData,
   simulationMode,
   operatingMode,
+  testStarted,
+  isDeviceConnected,
+  onStartTest,
   onSimulate,
 }: AcquisitionViewProps) {
   // Calculate progress percentage
@@ -58,8 +64,17 @@ export function AcquisitionView({
             <span className="text-lg font-semibold text-foreground">AIRA Cloud</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Activity className="h-4 w-4 animate-pulse text-primary" />
-            <span>Adquisición de datos en curso...</span>
+            {testStarted ? (
+              <>
+                <Activity className="h-4 w-4 animate-pulse text-primary" />
+                <span>Adquisición de datos en curso...</span>
+              </>
+            ) : (
+              <>
+                <Cpu className="h-4 w-4 text-primary" />
+                <span>Listo para iniciar la prueba</span>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -109,10 +124,32 @@ export function AcquisitionView({
               <CardContent className="flex items-center gap-3 py-4 px-6">
                 <Heart className="h-5 w-5 text-primary animate-pulse" />
                 <p className="text-sm text-foreground">
-                  El paciente debe exhalar de forma constante en el dispositivo durante la adquisición de datos...
+                  {testStarted
+                    ? 'El paciente debe exhalar de forma constante en el dispositivo durante la adquisición de datos...'
+                    : 'Cuando el paciente esté listo, pulsa «Iniciar prueba» para comenzar la captura.'}
                 </p>
               </CardContent>
             </Card>
+
+            {/* Start button — only before the test begins */}
+            {!testStarted && (
+              <div className="flex flex-col items-center gap-2">
+                <Button
+                  size="lg"
+                  onClick={onStartTest}
+                  disabled={isReal && !isDeviceConnected}
+                  className="gap-2 px-8"
+                >
+                  <Play className="h-5 w-5" />
+                  Iniciar prueba
+                </Button>
+                {isReal && !isDeviceConnected && (
+                  <p className="text-xs text-destructive">
+                    Esperando conexión con el dispositivo para poder iniciar...
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Live readout (real mode) */}
@@ -231,8 +268,8 @@ export function AcquisitionView({
             </CardContent>
           </Card>
 
-          {/* Simulation Controls — only available in academic mode */}
-          {operatingMode === 'academic' && (
+          {/* Simulation Controls — only available in academic mode once the test has started */}
+          {operatingMode === 'academic' && testStarted && (
           <Card className="border-border/50 bg-muted/30">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">

@@ -18,6 +18,10 @@ import { ConsentView } from '@/components/aira/consent-view'
 const ESP32_IP = '192.168.1.112'
 const ESP32_WS_PORT = 81
 const ESP32_WS_PATH = '/'
+// Comandos enviados al ESP32 por WebSocket. Ajústalos para que coincidan
+// con los que espera tu firmware (texto plano).
+const ESP32_START_CMD = 'START'
+const ESP32_STOP_CMD = 'STOP'
 
 export type AppView = 'mode-select' | 'login' | 'dashboard' | 'consent' | 'acquisition' | 'verdict'
 export type SimulationMode = 'healthy' | 'risk' | null
@@ -51,6 +55,8 @@ export default function AIRADashboard() {
   const [simulationMode, setSimulationMode] = useState<SimulationMode>(null)
   const [countdown, setCountdown] = useState(10)
   const [isDeviceConnected, setIsDeviceConnected] = useState(false)
+  // La prueba arranca solo cuando el operador pulsa "Iniciar prueba"
+  const [testStarted, setTestStarted] = useState(false)
 
   // Refs para la conexión WebSocket en modalidad "real"
   const wsRef = useRef<WebSocket | null>(null)
@@ -94,6 +100,8 @@ export default function AIRADashboard() {
   // Handle countdown and auto-transition to verdict
   useEffect(() => {
     if (currentView !== 'acquisition') return
+    // El countdown solo corre una vez iniciada la prueba
+    if (!testStarted) return
 
     if (countdown > 0) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
@@ -101,9 +109,13 @@ export default function AIRADashboard() {
     } else {
       // Countdown finished - stop collecting samples and transition to verdict
       isAcquiringRef.current = false
+      // Avisamos al ESP32 que la captura terminó
+      if (operatingMode === 'real' && wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(ESP32_STOP_CMD)
+      }
       setCurrentView('verdict')
     }
-  }, [currentView, countdown])
+  }, [currentView, countdown, testStarted, operatingMode])
 
   // Device / WebSocket connection — behaviour depends on the selected operating mode
   useEffect(() => {
@@ -226,18 +238,36 @@ export default function AIRADashboard() {
     setCurrentView('consent')
   }
 
-  // Handle consent accepted - begin the acquisition
+  // Handle consent accepted - go to the acquisition screen in "ready" state.
+  // The countdown / data capture only begins when the operator presses "Iniciar prueba".
   const handleConsentAccept = () => {
     setCountdown(10)
     setSimulationMode(null)
+    setTestStarted(false)
+    isAcquiringRef.current = false
+    setSensorData([])
+    setCurrentView('acquisition')
+  }
+
+  // Handle "Iniciar prueba" - starts the countdown and sends the start command to the ESP32
+  const handleStartTest = () => {
+    setCountdown(10)
+    setSensorData([])
     if (operatingMode === 'real') {
-      // Real mode: start with an empty chart and let the ESP32 stream fill it
-      setSensorData([])
+      // Empezamos a recoger las muestras que llegan por WebSocket
       isAcquiringRef.current = true
+      // Enviamos el comando de inicio al ESP32
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(ESP32_START_CMD)
+        console.log('[v0] Comando de inicio enviado al ESP32:', ESP32_START_CMD)
+      } else {
+        console.log('[v0] No se pudo enviar el comando: WebSocket no conectado')
+      }
     } else {
+      // Modo académico: datos de base mientras se simula
       setSensorData(generateSensorData(null))
     }
-    setCurrentView('acquisition')
+    setTestStarted(true)
   }
 
   // Handle simulation buttons
@@ -254,6 +284,7 @@ export default function AIRADashboard() {
   // Handle new screening (reset)
   const handleNewScreening = () => {
     isAcquiringRef.current = false
+    setTestStarted(false)
     setPatientData({ cip: '', edad: '', genero: '', tabaquismo: false })
     setSensorData([])
     setSimulationMode(null)
@@ -263,6 +294,7 @@ export default function AIRADashboard() {
   // Handle logout — returns to mode selection so the operating mode can be re-chosen
   const handleLogout = () => {
     isAcquiringRef.current = false
+    setTestStarted(false)
     setPatientData({ cip: '', edad: '', genero: '', tabaquismo: false })
     setSensorData([])
     setSimulationMode(null)
@@ -303,6 +335,9 @@ export default function AIRADashboard() {
           sensorData={sensorData}
           simulationMode={simulationMode}
           operatingMode={operatingMode}
+          testStarted={testStarted}
+          isDeviceConnected={isDeviceConnected}
+          onStartTest={handleStartTest}
           onSimulate={handleSimulate}
         />
       )}
