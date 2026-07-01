@@ -359,9 +359,7 @@ export default function AIRADashboard() {
         />
       )}
       
-      {currentView === 'analyzing' && (
-        <AnalyzingView secondsLeft={analysisCountdown} totalSeconds={ANALYSIS_DURATION} />
-      )}
+      {currentView === 'analyzing' && <AnalyzingView />}
 
       {currentView === 'verdict' && (
         <VerdictView
