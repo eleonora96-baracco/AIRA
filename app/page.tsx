@@ -6,6 +6,7 @@ import { ModeSelectionView } from '@/components/aira/mode-selection-view'
 import { LoginView } from '@/components/aira/login-view'
 import { DashboardView } from '@/components/aira/dashboard-view'
 import { AcquisitionView } from '@/components/aira/acquisition-view'
+import { AnalyzingView } from '@/components/aira/analyzing-view'
 import { VerdictView } from '@/components/aira/verdict-view'
 import { ConsentView } from '@/components/aira/consent-view'
 
@@ -23,7 +24,7 @@ const ESP32_WS_PATH = '/'
 const ESP32_START_CMD = 'START'
 const ESP32_STOP_CMD = 'STOP'
 
-export type AppView = 'mode-select' | 'login' | 'dashboard' | 'consent' | 'acquisition' | 'verdict'
+export type AppView = 'mode-select' | 'login' | 'dashboard' | 'consent' | 'acquisition' | 'analyzing' | 'verdict'
 export type SimulationMode = 'healthy' | 'risk' | null
 // 'academic' = sin dispositivo (datos simulados) · 'real' = dispositivo + WebSocket activo
 export type OperatingMode = 'academic' | 'real' | null
@@ -57,6 +58,9 @@ export default function AIRADashboard() {
   const [isDeviceConnected, setIsDeviceConnected] = useState(false)
   // La prueba arranca solo cuando el operador pulsa "Iniciar prueba"
   const [testStarted, setTestStarted] = useState(false)
+  // Cuenta atrás del análisis previo al resultado (45 s)
+  const ANALYSIS_DURATION = 45
+  const [analysisCountdown, setAnalysisCountdown] = useState(ANALYSIS_DURATION)
 
   // Refs para la conexión WebSocket en modalidad "real"
   const wsRef = useRef<WebSocket | null>(null)
@@ -107,15 +111,28 @@ export default function AIRADashboard() {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
       return () => clearTimeout(timer)
     } else {
-      // Countdown finished - stop collecting samples and transition to verdict
+      // Countdown finished - stop collecting samples and start the analysis loading
       isAcquiringRef.current = false
       // Avisamos al ESP32 que la captura terminó
       if (operatingMode === 'real' && wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(ESP32_STOP_CMD)
       }
-      setCurrentView('verdict')
+      setAnalysisCountdown(ANALYSIS_DURATION)
+      setCurrentView('analyzing')
     }
   }, [currentView, countdown, testStarted, operatingMode])
+
+  // Analysis loading countdown (45 s) before showing the verdict
+  useEffect(() => {
+    if (currentView !== 'analyzing') return
+
+    if (analysisCountdown > 0) {
+      const timer = setTimeout(() => setAnalysisCountdown((c) => c - 1), 1000)
+      return () => clearTimeout(timer)
+    } else {
+      setCurrentView('verdict')
+    }
+  }, [currentView, analysisCountdown])
 
   // Device / WebSocket connection — behaviour depends on the selected operating mode
   useEffect(() => {
@@ -342,6 +359,10 @@ export default function AIRADashboard() {
         />
       )}
       
+      {currentView === 'analyzing' && (
+        <AnalyzingView secondsLeft={analysisCountdown} totalSeconds={ANALYSIS_DURATION} />
+      )}
+
       {currentView === 'verdict' && (
         <VerdictView
           simulationMode={simulationMode}
