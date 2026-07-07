@@ -1,17 +1,18 @@
 'use client'
 
-import type { PatientData } from '@/app/page'
+import type { PatientData, OperatingMode } from '@/app/page'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Wind, Cpu, User, Play, LogOut } from 'lucide-react'
+import { Wind, Cpu, GraduationCap, User, Play, LogOut } from 'lucide-react'
 
 interface DashboardViewProps {
   patientData: PatientData
   setPatientData: (data: PatientData) => void
   isDeviceConnected: boolean
+  operatingMode: OperatingMode
   onStartScreening: () => void
   onLogout: () => void
 }
@@ -20,9 +21,12 @@ export function DashboardView({
   patientData,
   setPatientData,
   isDeviceConnected,
+  operatingMode,
   onStartScreening,
   onLogout,
 }: DashboardViewProps) {
+  const isAcademic = operatingMode === 'academic'
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -43,17 +47,24 @@ export function DashboardView({
               <p className="text-xs text-muted-foreground">Llc. García · Barcelona</p>
             </div>
 
-            {/* Device Status Badge */}
-            <Badge
-              variant={isDeviceConnected ? 'default' : 'destructive'}
-              className={`gap-2 ${isDeviceConnected ? 'bg-[#4A7C59] hover:bg-[#4A7C59]' : ''}`}
-            >
-              <span className={`h-2 w-2 rounded-full ${isDeviceConnected ? 'bg-[#68D391] animate-pulse' : 'bg-[#C55A43]'}`} />
-              <Cpu className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">
-                {isDeviceConnected ? 'Dispositivo AIRA Conectado' : 'Desconectado'}
-              </span>
-            </Badge>
+            {/* Device / Mode Status Badge */}
+            {isAcademic ? (
+              <Badge variant="secondary" className="gap-2">
+                <GraduationCap className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Modo Académico · Datos Simulados</span>
+              </Badge>
+            ) : (
+              <Badge
+                variant={isDeviceConnected ? 'default' : 'destructive'}
+                className={`gap-2 ${isDeviceConnected ? 'bg-[#4A7C59] hover:bg-[#4A7C59]' : ''}`}
+              >
+                <span className={`h-2 w-2 rounded-full ${isDeviceConnected ? 'bg-[#68D391] animate-pulse' : 'bg-[#C55A43]'}`} />
+                <Cpu className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">
+                  {isDeviceConnected ? 'Dispositivo AIRA Conectado' : 'Desconectado'}
+                </span>
+              </Badge>
+            )}
 
             {/* Logout Button */}
             <Button variant="ghost" size="icon" onClick={onLogout} title="Cerrar sesión">
@@ -111,7 +122,7 @@ export function DashboardView({
                 INICIAR CRIBADO PATOLÓGICO
               </Button>
 
-              {!isDeviceConnected && (
+              {!isDeviceConnected && !isAcademic && (
                 <p className="text-center text-sm text-muted-foreground">
                   Esperando conexión con el dispositivo ESP32...
                 </p>

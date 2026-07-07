@@ -1,16 +1,20 @@
 'use client'
 
-import type { SensorDataPoint, SimulationMode } from '@/app/page'
+import type { SensorDataPoint, SimulationMode, OperatingMode } from '@/app/page'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend } from 'recharts'
-import { Wind, Activity, Heart, AlertTriangle } from 'lucide-react'
+import { Wind, Activity, Heart, AlertTriangle, Play, Cpu } from 'lucide-react'
 
 interface AcquisitionViewProps {
   countdown: number
   sensorData: SensorDataPoint[]
   simulationMode: SimulationMode
+  operatingMode: OperatingMode
+  testStarted: boolean
+  isDeviceConnected: boolean
+  onStartTest: () => void
   onSimulate: (mode: 'healthy' | 'risk') => void
 }
 
@@ -33,11 +37,20 @@ export function AcquisitionView({
   countdown,
   sensorData,
   simulationMode,
+  operatingMode,
+  testStarted,
+  isDeviceConnected,
+  onStartTest,
   onSimulate,
 }: AcquisitionViewProps) {
   // Calculate progress percentage
   const progress = ((10 - countdown) / 10) * 100
   const circumference = 2 * Math.PI * 80
+
+  // Live readout (real mode): number of samples received and latest values
+  const isReal = operatingMode === 'real'
+  const sampleCount = sensorData.length
+  const latest = sampleCount > 0 ? sensorData[sampleCount - 1] : null
 
   return (
     <div className="min-h-screen bg-background">
@@ -51,8 +64,17 @@ export function AcquisitionView({
             <span className="text-lg font-semibold text-foreground">AIRA Cloud</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Activity className="h-4 w-4 animate-pulse text-primary" />
-            <span>Adquisición de datos en curso...</span>
+            {testStarted ? (
+              <>
+                <Activity className="h-4 w-4 animate-pulse text-primary" />
+                <span>Adquisición de datos en curso...</span>
+              </>
+            ) : (
+              <>
+                <Cpu className="h-4 w-4 text-primary" />
+                <span>Listo para iniciar la prueba</span>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -102,11 +124,72 @@ export function AcquisitionView({
               <CardContent className="flex items-center gap-3 py-4 px-6">
                 <Heart className="h-5 w-5 text-primary animate-pulse" />
                 <p className="text-sm text-foreground">
-                  El paciente debe exhalar de forma constante en el dispositivo durante la adquisición de datos...
+                  {testStarted
+                    ? 'El paciente debe exhalar de forma constante en el dispositivo durante la adquisición de datos...'
+                    : 'Cuando el paciente esté listo, pulsa «Iniciar prueba» para comenzar la captura.'}
                 </p>
               </CardContent>
             </Card>
+
+            {/* Start button — only before the test begins */}
+            {!testStarted && (
+              <div className="flex flex-col items-center gap-2">
+                <Button
+                  size="lg"
+                  onClick={onStartTest}
+                  disabled={isReal && !isDeviceConnected}
+                  className="gap-2 px-8"
+                >
+                  <Play className="h-5 w-5" />
+                  Iniciar prueba
+                </Button>
+                {isReal && !isDeviceConnected && (
+                  <p className="text-xs text-destructive">
+                    Esperando conexión con el dispositivo para poder iniciar...
+                  </p>
+                )}
+              </div>
+            )}
           </div>
+
+          {/* Live readout (real mode) */}
+          {isReal && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Card className="border-primary/30 bg-primary/5">
+                <CardContent className="flex flex-col items-center justify-center py-4">
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${sampleCount > 0 ? 'bg-[#4A7C59] animate-pulse' : 'bg-muted-foreground'}`} />
+                    <span className="text-2xl font-bold tabular-nums text-foreground">{sampleCount}</span>
+                  </div>
+                  <span className="mt-1 text-xs text-muted-foreground">Muestras recibidas</span>
+                </CardContent>
+              </Card>
+              <Card className="border-border/50">
+                <CardContent className="flex flex-col items-center justify-center py-4">
+                  <span className="text-2xl font-bold tabular-nums text-foreground">
+                    {latest ? latest.mq2.toFixed(2) : '—'}
+                  </span>
+                  <span className="mt-1 text-xs text-muted-foreground">MQ-2</span>
+                </CardContent>
+              </Card>
+              <Card className="border-border/50">
+                <CardContent className="flex flex-col items-center justify-center py-4">
+                  <span className="text-2xl font-bold tabular-nums text-foreground">
+                    {latest ? latest.mq135.toFixed(2) : '—'}
+                  </span>
+                  <span className="mt-1 text-xs text-muted-foreground">MQ-135</span>
+                </CardContent>
+              </Card>
+              <Card className="border-border/50">
+                <CardContent className="flex flex-col items-center justify-center py-4">
+                  <span className="text-2xl font-bold tabular-nums text-foreground">
+                    {latest ? latest.mq9.toFixed(2) : '—'}
+                  </span>
+                  <span className="mt-1 text-xs text-muted-foreground">MQ-9</span>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {/* Sensor Chart */}
           <Card className="border-border/50 shadow-lg">
@@ -125,14 +208,16 @@ export function AcquisitionView({
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
                   <XAxis
                     dataKey="time"
-                    tickFormatter={(value) => `${value.toFixed(1)}s`}
+                    type="number"
+                    domain={isReal ? ['dataMin', 'dataMax'] : [0, 'dataMax']}
+                    tickFormatter={(value) => `${Number(value).toFixed(1)}s`}
                     tick={{ fontSize: 12 }}
                     tickLine={false}
                     axisLine={false}
                     label={{ value: 'Tiempo (s)', position: 'insideBottom', offset: -10, fontSize: 12 }}
                   />
                   <YAxis
-                    domain={[0, simulationMode === 'risk' ? 12 : 5]}
+                    domain={isReal ? [0, 'auto'] : [0, simulationMode === 'risk' ? 12 : 5]}
                     tick={{ fontSize: 12 }}
                     tickLine={false}
                     axisLine={false}
@@ -183,7 +268,8 @@ export function AcquisitionView({
             </CardContent>
           </Card>
 
-          {/* Simulation Controls */}
+          {/* Simulation Controls — only available in academic mode once the test has started */}
+          {operatingMode === 'academic' && testStarted && (
           <Card className="border-border/50 bg-muted/30">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -214,6 +300,7 @@ export function AcquisitionView({
               </p>
             </CardContent>
           </Card>
+          )}
         </div>
       </main>
     </div>
