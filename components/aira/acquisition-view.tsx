@@ -43,18 +43,16 @@ export function AcquisitionView({
   onStartTest,
   onSimulate,
 }: AcquisitionViewProps) {
-  // Calculate progress percentage
   const progress = ((10 - countdown) / 10) * 100
   const circumference = 2 * Math.PI * 80
 
-  // Live readout (real mode): number of samples received and latest values
+  // Sample count and latest values for the live readout (real mode)
   const isReal = operatingMode === 'real'
   const sampleCount = sensorData.length
   const latest = sampleCount > 0 ? sensorData[sampleCount - 1] : null
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b border-border/50 bg-card/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
@@ -79,13 +77,10 @@ export function AcquisitionView({
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="mx-auto max-w-4xl px-4 py-8">
         <div className="space-y-8">
-          {/* Countdown Timer */}
           <div className="flex flex-col items-center space-y-4">
             <div className="relative flex h-48 w-48 items-center justify-center">
-              {/* Background circle */}
               <svg className="absolute h-48 w-48 -rotate-90 transform">
                 <circle
                   cx="96"
@@ -96,7 +91,6 @@ export function AcquisitionView({
                   strokeWidth="8"
                   className="text-muted/30"
                 />
-                {/* Progress circle */}
                 <circle
                   cx="96"
                   cy="96"
@@ -110,7 +104,6 @@ export function AcquisitionView({
                   strokeDashoffset={circumference - (progress / 100) * circumference}
                 />
               </svg>
-              {/* Countdown number */}
               <div className="flex flex-col items-center">
                 <span className={`text-6xl font-bold text-foreground ${countdown <= 3 ? 'animate-countdown text-primary' : ''}`}>
                   {countdown}
@@ -119,7 +112,6 @@ export function AcquisitionView({
               </div>
             </div>
 
-            {/* Helper Text */}
             <Card className="border-primary/30 bg-primary/5">
               <CardContent className="flex items-center gap-3 py-4 px-6">
                 <Heart className="h-5 w-5 text-primary animate-pulse" />
@@ -131,7 +123,7 @@ export function AcquisitionView({
               </CardContent>
             </Card>
 
-            {/* Start button — only before the test begins */}
+            {/* Start button, shown only before the test begins */}
             {!testStarted && (
               <div className="flex flex-col items-center gap-2">
                 <Button
@@ -152,7 +144,7 @@ export function AcquisitionView({
             )}
           </div>
 
-          {/* Live readout (real mode) */}
+          {/* Live readout of incoming samples (real mode only) */}
           {isReal && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Card className="border-primary/30 bg-primary/5">
@@ -191,7 +183,6 @@ export function AcquisitionView({
             </div>
           )}
 
-          {/* Sensor Chart */}
           <Card className="border-border/50 shadow-lg">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -217,7 +208,7 @@ export function AcquisitionView({
                     label={{ value: 'Tiempo (s)', position: 'insideBottom', offset: -10, fontSize: 12 }}
                   />
                   <YAxis
-                    domain={isReal ? [0, 'auto'] : [0, simulationMode === 'risk' ? 12 : 5]}
+                    domain={isReal ? [0, 'auto'] : [0, simulationMode === 'risk' ? 8 : 3]}
                     tick={{ fontSize: 12 }}
                     tickLine={false}
                     axisLine={false}
@@ -268,7 +259,7 @@ export function AcquisitionView({
             </CardContent>
           </Card>
 
-          {/* Simulation Controls — only available in academic mode once the test has started */}
+          {/* Simulation controls, available only in academic mode once the test has started */}
           {operatingMode === 'academic' && testStarted && (
           <Card className="border-border/50 bg-muted/30">
             <CardHeader className="pb-2">

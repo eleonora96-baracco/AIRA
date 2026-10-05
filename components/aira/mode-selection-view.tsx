@@ -13,7 +13,6 @@ export function ModeSelectionView({ onSelectMode }: ModeSelectionViewProps) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
       <div className="w-full max-w-3xl space-y-8">
-        {/* Logo and Brand */}
         <div className="flex flex-col items-center space-y-4">
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/25">
             <Wind className="h-10 w-10 text-primary-foreground" />
@@ -26,9 +25,7 @@ export function ModeSelectionView({ onSelectMode }: ModeSelectionViewProps) {
           </div>
         </div>
 
-        {/* Mode Options */}
         <div className="grid gap-6 md:grid-cols-2">
-          {/* Academic Mode */}
           <Card className="group flex flex-col border-border/50 shadow-lg transition-all hover:border-primary/50 hover:shadow-xl">
             <CardHeader>
               <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
@@ -62,7 +59,6 @@ export function ModeSelectionView({ onSelectMode }: ModeSelectionViewProps) {
             </CardContent>
           </Card>
 
-          {/* Real Mode */}
           <Card className="group flex flex-col border-border/50 shadow-lg transition-all hover:border-primary/50 hover:shadow-xl">
             <CardHeader>
               <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
@@ -98,7 +94,6 @@ export function ModeSelectionView({ onSelectMode }: ModeSelectionViewProps) {
           </Card>
         </div>
 
-        {/* Footer */}
         <p className="text-center text-xs text-muted-foreground">
           © 2026 AIRA Medical Technologies · v1.0.0
         </p>

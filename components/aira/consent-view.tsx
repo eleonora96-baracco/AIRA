@@ -49,7 +49,6 @@ export function ConsentView({ patientData, onAccept, onCancel }: ConsentViewProp
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
@@ -65,10 +64,8 @@ export function ConsentView({ patientData, onAccept, onCancel }: ConsentViewProp
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="mx-auto max-w-3xl px-4 py-8">
         <div className="space-y-6">
-          {/* Page Title */}
           <div className="text-center">
             <h1 className="text-2xl font-bold text-foreground">Consentimiento Informado</h1>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -76,7 +73,6 @@ export function ConsentView({ patientData, onAccept, onCancel }: ConsentViewProp
             </p>
           </div>
 
-          {/* Patient reference */}
           {patientData.cip && (
             <div className="rounded-lg border border-border/50 bg-muted/40 px-4 py-3 text-sm">
               <span className="text-muted-foreground">Paciente (CIP): </span>
@@ -84,7 +80,6 @@ export function ConsentView({ patientData, onAccept, onCancel }: ConsentViewProp
             </div>
           )}
 
-          {/* Terms Card */}
           <Card className="border-border/50 shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -109,7 +104,6 @@ export function ConsentView({ patientData, onAccept, onCancel }: ConsentViewProp
             </CardContent>
           </Card>
 
-          {/* Acceptance Card */}
           <Card className="border-border/50 shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">

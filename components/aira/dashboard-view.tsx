@@ -29,10 +29,8 @@ export function DashboardView({
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border/50 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
-          {/* Logo */}
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
               <Wind className="h-5 w-5 text-primary-foreground" />
@@ -40,14 +38,12 @@ export function DashboardView({
             <span className="text-lg font-semibold text-foreground">AIRA Cloud</span>
           </div>
 
-          {/* Operator Info & Device Status */}
           <div className="flex items-center gap-4">
             <div className="hidden sm:block text-right">
               <p className="text-sm font-medium text-foreground">Farmacia Comunitaria</p>
               <p className="text-xs text-muted-foreground">Llc. García · Barcelona</p>
             </div>
 
-            {/* Device / Mode Status Badge */}
             {isAcademic ? (
               <Badge variant="secondary" className="gap-2">
                 <GraduationCap className="h-3.5 w-3.5" />
@@ -66,7 +62,6 @@ export function DashboardView({
               </Badge>
             )}
 
-            {/* Logout Button */}
             <Button variant="ghost" size="icon" onClick={onLogout} title="Cerrar sesión">
               <LogOut className="h-4 w-4" />
             </Button>
@@ -74,10 +69,8 @@ export function DashboardView({
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="mx-auto max-w-3xl px-4 py-8">
         <div className="space-y-8">
-          {/* Page Title */}
           <div className="text-center">
             <h1 className="text-2xl font-bold text-foreground">Panel de Cribado</h1>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -85,7 +78,6 @@ export function DashboardView({
             </p>
           </div>
 
-          {/* Patient Data Form */}
           <Card className="border-border/50 shadow-lg">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -97,7 +89,6 @@ export function DashboardView({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* CIP Field */}
               <div className="space-y-2">
                 <Label htmlFor="patient-cip" className="text-sm font-medium">
                   Código de Identificación del Paciente (CIP)
@@ -111,7 +102,6 @@ export function DashboardView({
                 />
               </div>
 
-              {/* Start Screening Button */}
               <Button
                 onClick={onStartScreening}
                 className="w-full h-14 text-lg font-semibold shadow-lg shadow-primary/25"
@@ -130,7 +120,6 @@ export function DashboardView({
             </CardContent>
           </Card>
 
-          {/* Info Card */}
           <Card className="border-primary/20 bg-primary/5">
             <CardContent className="flex items-start gap-4 pt-6">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">

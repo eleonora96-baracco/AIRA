@@ -22,7 +22,6 @@ export function LoginView({ operatingMode, onLogin, onBack }: LoginViewProps) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
       <div className="w-full max-w-md space-y-8">
-        {/* Logo and Brand */}
         <div className="flex flex-col items-center space-y-4">
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/25">
             <Wind className="h-10 w-10 text-primary-foreground" />
@@ -34,7 +33,6 @@ export function LoginView({ operatingMode, onLogin, onBack }: LoginViewProps) {
             </p>
           </div>
 
-          {/* Selected operating mode indicator */}
           {operatingMode && (
             <Badge variant="secondary" className="gap-2 px-3 py-1 text-sm">
               {isAcademic ? (
@@ -47,7 +45,6 @@ export function LoginView({ operatingMode, onLogin, onBack }: LoginViewProps) {
           )}
         </div>
 
-        {/* Login Card */}
         <Card className="border-border/50 shadow-xl">
           <CardHeader className="space-y-1 pb-4">
             <CardTitle className="text-xl text-center">Acceso Personal Sanitario</CardTitle>
@@ -120,7 +117,6 @@ export function LoginView({ operatingMode, onLogin, onBack }: LoginViewProps) {
           </CardContent>
         </Card>
 
-        {/* Footer */}
         <p className="text-center text-xs text-muted-foreground">
           © 2026 AIRA Medical Technologies · v1.0.0
         </p>

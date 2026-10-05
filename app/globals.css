@@ -4,32 +4,31 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* AIRA Medical Dashboard - Custom Palette */
-  /* Ice Blue #F0F4F8 - Sfondi generali, Card, Sezioni */
+  /* AIRA palette. Ice Blue #F0F4F8: page background, cards, sections */
   --background: #F0F4F8;
   --foreground: #2A4365;
   --card: #FFFFFF;
   --card-foreground: #2A4365;
   --popover: #FFFFFF;
   --popover-foreground: #2A4365;
-  /* Deep Slate Blue #2A4365 - Titoli, Pulsanti principali, Navbar */
+  /* Deep Slate Blue #2A4365: headings, primary buttons, navbar */
   --primary: #2A4365;
   --primary-foreground: #FFFFFF;
-  /* Ice Blue variants for secondary */
+  /* Lighter Ice Blue variants for secondary and muted surfaces */
   --secondary: #E2E8F0;
   --secondary-foreground: #2A4365;
   --muted: #E2E8F0;
   --muted-foreground: #4A5568;
-  /* Sage Green #4A7C59 - Icone, Link, Elementi di successo */
+  /* Sage Green #4A7C59: icons, links, success states */
   --accent: #4A7C59;
   --accent-foreground: #FFFFFF;
-  /* Muted Terracotta #C55A43 - Call to Action critiche, Errori */
+  /* Muted Terracotta #C55A43: critical actions, errors */
   --destructive: #C55A43;
   --destructive-foreground: #FFFFFF;
   --border: #CBD5E0;
   --input: #CBD5E0;
   --ring: #2A4365;
-  /* Chart colors using the palette */
+  /* Chart series colors, derived from the palette */
   --chart-1: #2A4365;
   --chart-2: #4A7C59;
   --chart-3: #D99B26;
@@ -44,10 +43,10 @@
   --sidebar-accent-foreground: #2A4365;
   --sidebar-border: #CBD5E0;
   --sidebar-ring: #2A4365;
-  /* Sage Green #4A7C59 - Success */
+  /* Success state (same Sage Green as accent) */
   --success: #4A7C59;
   --success-foreground: #FFFFFF;
-  /* Warm Ochre #D99B26 - Warning, Accenti */
+  /* Warm Ochre #D99B26: warnings, highlights */
   --warning: #D99B26;
   --warning-foreground: #2A4365;
 }
@@ -145,7 +144,7 @@
   }
 }
 
-/* Custom animations for medical dashboard */
+/* Pulsing ring animation, applied with the .animate-pulse-ring utility class */
 @keyframes pulse-ring {
   0% {
     transform: scale(0.95);

@@ -1,29 +1,30 @@
 'use client'
 
-import type { PatientData, SimulationMode } from '@/app/page'
+import type { PatientData } from '@/app/page'
+import type { ClassificationResult } from '@/lib/classifier'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Wind, CheckCircle2, AlertTriangle, Send, RotateCcw, FileText, User } from 'lucide-react'
+import { Wind, CheckCircle2, AlertTriangle, AlertCircle, Send, RotateCcw, FileText, User, Cpu } from 'lucide-react'
 
 interface VerdictViewProps {
-  simulationMode: SimulationMode
+  result: ClassificationResult
   patientData: PatientData
   onDerivation: () => void
   onNewScreening: () => void
 }
 
 export function VerdictView({
-  simulationMode,
+  result,
   patientData,
   onDerivation,
   onNewScreening,
 }: VerdictViewProps) {
-  const isHealthy = simulationMode !== 'risk'
+  const isInconclusive = result.label === 'inconclusive'
+  const isHealthy = result.label === 'healthy'
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b border-border/50 bg-card/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
@@ -39,10 +40,8 @@ export function VerdictView({
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="mx-auto max-w-3xl px-4 py-8">
         <div className="space-y-6">
-          {/* Patient Summary */}
           <Card className="border-border/50">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -58,8 +57,33 @@ export function VerdictView({
             </CardContent>
           </Card>
 
-          {/* Verdict Card */}
-          {isHealthy ? (
+          {isInconclusive ? (
+            <Card className="border-[#D99B26]/50 bg-[#D99B26]/5 shadow-lg shadow-[#D99B26]/10">
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#D99B26]/20">
+                    <AlertCircle className="h-7 w-7 text-[#D99B26]" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl text-[#D99B26]">Resultado no concluyente</CardTitle>
+                    <CardDescription className="text-[#D99B26]/80">
+                      No se ha podido clasificar la muestra.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Alert className="border-[#D99B26]/30 bg-[#D99B26]/10">
+                  <AlertCircle className="h-4 w-4 text-[#D99B26]" />
+                  <AlertTitle className="text-[#D99B26]">Repita la prueba</AlertTitle>
+                  <AlertDescription className="text-[#D99B26]/90">
+                    {result.reason ?? 'Los datos recibidos no son suficientes.'} Compruebe la conexión
+                    con el dispositivo y realice un nuevo cribado.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+          ) : isHealthy ? (
             <Card className="border-[#4A7C59]/50 bg-[#4A7C59]/5 shadow-lg shadow-[#4A7C59]/10">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-3">
@@ -85,7 +109,6 @@ export function VerdictView({
                   </AlertDescription>
                 </Alert>
 
-                {/* Send Report Button */}
                 <Button
                   onClick={onDerivation}
                   className="w-full h-12 bg-[#4A7C59] hover:bg-[#3D6649] shadow-lg shadow-[#4A7C59]/25"
@@ -125,7 +148,6 @@ export function VerdictView({
                   </AlertDescription>
                 </Alert>
 
-                {/* Derivation Button */}
                 <Button
                   onClick={onDerivation}
                   className="w-full h-12 bg-[#C55A43] hover:bg-[#B04A35] shadow-lg shadow-[#C55A43]/25"
@@ -141,7 +163,27 @@ export function VerdictView({
             </Card>
           )}
 
-          {/* Actions */}
+          {!isInconclusive && (
+            <Card className="border-border/50">
+              <CardContent className="flex items-start gap-3 py-4 text-sm">
+                <Cpu className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <div className="space-y-1">
+                  <p className="font-medium">
+                    Modelo: {result.modelName} · Confianza: {Math.round(result.confidence * 100)} %
+                  </p>
+                  <p className="text-muted-foreground">
+                    Sano {Math.round(result.scores.healthy * 100)} % · Riesgo {Math.round(result.scores.risk * 100)} %
+                  </p>
+                  {result.isPlaceholder && (
+                    <p className="text-xs text-[#D99B26]">
+                      Modelo de demostración sin entrenar: el resultado no tiene validez clínica.
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="flex justify-center pt-4">
             <Button variant="outline" onClick={onNewScreening} size="lg">
               <RotateCcw className="mr-2 h-4 w-4" />
@@ -149,11 +191,10 @@ export function VerdictView({
             </Button>
           </div>
 
-          {/* Footer Info */}
           <div className="text-center pt-4 border-t border-border/50">
             <p className="text-xs text-muted-foreground">
               Este resultado es orientativo y no sustituye el diagnóstico médico profesional. 
-              Sistema AIRA certificado para uso en la red sanitaria CatSalut.
+              Prueba de concepto: no es un producto sanitario ni está certificado para uso clínico.
             </p>
           </div>
         </div>

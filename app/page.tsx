@@ -9,24 +9,23 @@ import { AcquisitionView } from '@/components/aira/acquisition-view'
 import { AnalyzingView } from '@/components/aira/analyzing-view'
 import { VerdictView } from '@/components/aira/verdict-view'
 import { ConsentView } from '@/components/aira/consent-view'
+import { classifier, inconclusiveResult, parseDeviceResult, type ClassificationResult } from '@/lib/classifier'
 
-// =====================================================
-// HARDWARE CONFIG (modalidad "real")
-// Cambia estos valores por los de tu ESP32 en la red local.
-// El firmware usa un "Servidor WebSocket Nativo" (arduinoWebSockets)
-// que escucha en el puerto 81 y en la ruta raíz "/".
-// =====================================================
-const ESP32_IP = '192.168.1.112'
-const ESP32_WS_PORT = 81
-const ESP32_WS_PATH = '/'
-// Comandos enviados al ESP32 por WebSocket. Ajústalos para que coincidan
-// con los que espera tu firmware (texto plano).
+// ESP32 connection settings (used in "real" mode only), read from environment
+// variables so no device address is hardcoded. Set them in .env.local (see
+// .env.example). The firmware runs a native WebSocket server (arduinoWebSockets),
+// by default on port 81 at "/".
+const ESP32_IP = process.env.NEXT_PUBLIC_ESP32_IP ?? ''
+const ESP32_WS_PORT = Number(process.env.NEXT_PUBLIC_ESP32_WS_PORT ?? 81)
+const ESP32_WS_PATH = process.env.NEXT_PUBLIC_ESP32_WS_PATH ?? '/'
+// Plain-text commands sent to the ESP32 over the WebSocket.
+// They must match the commands the firmware expects.
 const ESP32_START_CMD = 'START'
 const ESP32_STOP_CMD = 'STOP'
 
 export type AppView = 'mode-select' | 'login' | 'dashboard' | 'consent' | 'acquisition' | 'analyzing' | 'verdict'
 export type SimulationMode = 'healthy' | 'risk' | null
-// 'academic' = sin dispositivo (datos simulados) · 'real' = dispositivo + WebSocket activo
+// 'academic' = no device, simulated data · 'real' = live ESP32 device over WebSocket
 export type OperatingMode = 'academic' | 'real' | null
 
 export interface PatientData {
@@ -56,64 +55,75 @@ export default function AIRADashboard() {
   const [simulationMode, setSimulationMode] = useState<SimulationMode>(null)
   const [countdown, setCountdown] = useState(10)
   const [isDeviceConnected, setIsDeviceConnected] = useState(false)
-  // La prueba arranca solo cuando el operador pulsa "Iniciar prueba"
+  // Stays false until the operator presses "Iniciar prueba"
   const [testStarted, setTestStarted] = useState(false)
-  // Cuenta atrás del análisis previo al resultado (45 s)
+  // Duration (seconds) of the analysis screen shown before the verdict
   const ANALYSIS_DURATION = 45
   const [analysisCountdown, setAnalysisCountdown] = useState(ANALYSIS_DURATION)
 
-  // Refs para la conexión WebSocket en modalidad "real"
+  // Verdict for the last acquisition; null until it is ready.
+  // Real mode: sent by the ESP32. Academic mode: produced by the simulated on-device model.
+  const [classification, setClassification] = useState<ClassificationResult | null>(null)
+
+  // Refs so the WebSocket handlers always see the current socket and acquisition state
+  // without re-running the connection effect
   const wsRef = useRef<WebSocket | null>(null)
   const isAcquiringRef = useRef(false)
+  // Latest samples, so the classification effect can read them without depending on them
+  const sensorDataRef = useRef<SensorDataPoint[]>([])
+  sensorDataRef.current = sensorData
 
-  // Generate mock sensor data based on simulation mode
+  // Generates 101 mock samples (0-10 s at 0.1 s steps) for the selected simulation profile.
+  // Values are ratios against the clean-air baseline (about 1.0 at rest), like the
+  // ones the ESP32 sends.
   const generateSensorData = useCallback((mode: SimulationMode): SensorDataPoint[] => {
     const data: SensorDataPoint[] = []
     for (let i = 0; i <= 100; i++) {
       const time = i / 10
       if (mode === 'healthy') {
-        // Healthy: Low, stable readings between 1.0 and 3.5
+        // Healthy profile: flat, close to the baseline
         data.push({
           time,
-          mq2: 1.5 + Math.sin(time * 0.5) * 0.5 + Math.random() * 0.5,
-          mq135: 2.0 + Math.cos(time * 0.3) * 0.7 + Math.random() * 0.3,
-          mq9: 1.2 + Math.sin(time * 0.7) * 0.4 + Math.random() * 0.4,
+          mq2: 1.0 + Math.sin(time * 0.5) * 0.08 + Math.random() * 0.08,
+          mq135: 1.05 + Math.cos(time * 0.3) * 0.1 + Math.random() * 0.06,
+          mq9: 1.0 + Math.sin(time * 0.7) * 0.06 + Math.random() * 0.06,
         })
       } else if (mode === 'risk') {
-        // Risk: High readings with MQ-135 dominating (VOCs indicator)
-        const riskFactor = Math.min(1, time / 5) // Gradually increases
+        // Risk profile: strong rise with MQ-135 (VOC sensor) dominating
+        const riskFactor = Math.min(1, time / 5) // Ramps up linearly over the first 5 s
         data.push({
           time,
-          mq2: 2.5 + riskFactor * 4 + Math.sin(time * 0.8) * 1.5 + Math.random() * 0.8,
-          mq135: 3.0 + riskFactor * 7 + Math.sin(time * 0.5) * 2 + Math.random() * 1.2, // Dominates up to 10+
-          mq9: 2.0 + riskFactor * 3 + Math.cos(time * 0.6) * 1 + Math.random() * 0.6,
+          mq2: 1.0 + riskFactor * 1.8 + Math.sin(time * 0.8) * 0.3 + Math.random() * 0.15,
+          mq135: 1.0 + riskFactor * 4.5 + Math.sin(time * 0.5) * 0.6 + Math.random() * 0.25, // Peaks around 6
+          mq9: 1.0 + riskFactor * 1.2 + Math.cos(time * 0.6) * 0.2 + Math.random() * 0.1,
         })
       } else {
-        // Default: baseline readings
+        // No profile selected: baseline with a little noise
         data.push({
           time,
-          mq2: 1.0 + Math.random() * 0.5,
-          mq135: 1.2 + Math.random() * 0.5,
-          mq9: 0.8 + Math.random() * 0.5,
+          mq2: 1.0 + Math.random() * 0.05,
+          mq135: 1.0 + Math.random() * 0.05,
+          mq9: 1.0 + Math.random() * 0.05,
         })
       }
     }
     return data
   }, [])
 
-  // Handle countdown and auto-transition to verdict
+  // Acquisition countdown: ticks once per second after the test starts,
+  // then stops the capture and moves on to the analysis screen
   useEffect(() => {
     if (currentView !== 'acquisition') return
-    // El countdown solo corre una vez iniciada la prueba
+    // Do not tick until the operator has started the test
     if (!testStarted) return
 
     if (countdown > 0) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
       return () => clearTimeout(timer)
     } else {
-      // Countdown finished - stop collecting samples and start the analysis loading
+      // Capture finished: stop collecting samples
       isAcquiringRef.current = false
-      // Avisamos al ESP32 que la captura terminó
+      // Tell the ESP32 to stop streaming
       if (operatingMode === 'real' && wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(ESP32_STOP_CMD)
       }
@@ -122,30 +132,52 @@ export default function AIRADashboard() {
     }
   }, [currentView, countdown, testStarted, operatingMode])
 
-  // Analysis loading countdown (45 s) before showing the verdict
+  // Academic mode only: simulate the device's on-board inference once the analysis starts.
+  // In real mode the ESP32 computes the verdict itself and sends it over the WebSocket.
+  useEffect(() => {
+    if (currentView !== 'analyzing' || operatingMode !== 'academic') return
+
+    let cancelled = false
+    classifier
+      .classify(sensorDataRef.current)
+      .then((result) => {
+        if (!cancelled) setClassification(result)
+      })
+      .catch((error) => {
+        console.error('Classification failed:', error)
+        if (!cancelled) setClassification(inconclusiveResult('Error al ejecutar el modelo de clasificación.'))
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentView, operatingMode])
+
+  // Analysis countdown: shows the loading screen, then reveals the verdict once it is available
   useEffect(() => {
     if (currentView !== 'analyzing') return
 
     if (analysisCountdown > 0) {
       const timer = setTimeout(() => setAnalysisCountdown((c) => c - 1), 1000)
       return () => clearTimeout(timer)
-    } else {
+    } else if (classification) {
       setCurrentView('verdict')
+    } else if (operatingMode === 'real') {
+      // The device should have answered long before the analysis screen ends
+      setClassification(inconclusiveResult('El dispositivo no devolvió ningún veredicto.'))
     }
-  }, [currentView, analysisCountdown])
+  }, [currentView, analysisCountdown, classification, operatingMode])
 
-  // Device / WebSocket connection — behaviour depends on the selected operating mode
+  // Device connection: simulated in academic mode, live WebSocket in real mode
   useEffect(() => {
-    // No mode selected yet (still on mode-select screen)
+    // No mode selected yet (user is still on the mode selection screen)
     if (!operatingMode) {
       setIsDeviceConnected(false)
       return
     }
 
-    // =====================================================
-    // ACADEMIC MODE: no physical device, data is simulated.
-    // We mark the device as "connected" so the workflow can run.
-    // =====================================================
+    // Academic mode: no physical device, so after a short delay we report it as
+    // "connected" to let the workflow proceed with simulated data.
     if (operatingMode === 'academic') {
       const connectionTimer = setTimeout(() => {
         setIsDeviceConnected(true)
@@ -154,20 +186,23 @@ export default function AIRADashboard() {
       return () => clearTimeout(connectionTimer)
     }
 
-    // =====================================================
-    // REAL MODE: live WebSocket connection to the ESP32.
-    // Streams one sample per message and appends it to the chart
-    // while a screening acquisition is in progress.
-    // =====================================================
-    // ws:// for local HTTP, wss:// when the app is served over HTTPS
-    // (a secure page cannot open an insecure ws:// socket - mixed content).
+    // Real mode: live WebSocket connection to the ESP32. Incoming samples are
+    // appended to the chart while an acquisition is in progress.
+    // Use wss:// when the app is served over HTTPS, since browsers block
+    // insecure ws:// connections from secure pages (mixed content).
+    if (!ESP32_IP) {
+      console.error('NEXT_PUBLIC_ESP32_IP is not set: cannot connect to the ESP32 (see .env.example)')
+      return
+    }
     const wsProtocol =
       typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss' : 'ws'
     const WS_URL = `${wsProtocol}://${ESP32_IP}:${ESP32_WS_PORT}${ESP32_WS_PATH}`
 
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+    // Set on cleanup so onclose does not schedule a reconnect
     let closedByCleanup = false
 
+    // Coerces a raw payload entry to numbers, defaulting missing/invalid fields to 0
     const parseSample = (entry: any): SensorDataPoint => ({
       time: parseFloat(entry.time) || 0,
       mq2: parseFloat(entry.mq2) || 0,
@@ -176,38 +211,45 @@ export default function AIRADashboard() {
     })
 
     const connectWebSocket = () => {
-      console.log('[v0] Conectando al ESP32:', WS_URL)
+      console.log('Connecting to ESP32:', WS_URL)
       const ws = new WebSocket(WS_URL)
       wsRef.current = ws
 
       ws.onopen = () => {
-        console.log('[v0] WebSocket conectado al ESP32')
+        console.log('WebSocket connected to ESP32')
         setIsDeviceConnected(true)
       }
 
       ws.onclose = () => {
-        console.log('[v0] WebSocket desconectado')
+        console.log('WebSocket disconnected')
         setIsDeviceConnected(false)
         if (!closedByCleanup) {
-          // Reintenta la conexión cada 3 segundos
+          // Retry the connection every 3 seconds
           reconnectTimer = setTimeout(connectWebSocket, 3000)
         }
       }
 
       ws.onerror = (error) => {
-        console.log('[v0] Error de WebSocket:', error)
+        console.error('WebSocket error:', error)
         setIsDeviceConnected(false)
       }
 
       ws.onmessage = (event) => {
         try {
-          // Formato esperado del ESP32 (streaming muestra a muestra):
+          // Expected ESP32 message format (one sample per message):
           //   { "time": 0.1, "mq2": 1.5, "mq135": 2.0, "mq9": 1.2 }
-          // También se acepta un lote: { "data": [ {...}, {...} ] }
-          console.log('[v0] WS mensaje recibido:', event.data, '| adquiriendo:', isAcquiringRef.current)
+          // A batch is also accepted: { "data": [ {...}, {...} ] }
+          // After the last sample the device sends the verdict (handled below)
+          console.debug('WebSocket message received:', event.data, '| acquiring:', isAcquiringRef.current)
           const payload = JSON.parse(event.data)
 
-          // Solo guardamos datos mientras se está realizando una adquisición
+          // Verdict computed on the device: { "result": { "label": "risk", "scores": {...}, ... } }
+          if (payload.result) {
+            setClassification(parseDeviceResult(payload.result))
+            return
+          }
+
+          // Ignore samples that arrive outside an active acquisition
           if (!isAcquiringRef.current) return
 
           if (payload.data && Array.isArray(payload.data)) {
@@ -217,7 +259,7 @@ export default function AIRADashboard() {
             setSensorData((prev) => [...prev, parseSample(payload)])
           }
         } catch (error) {
-          console.log('[v0] Error al parsear el mensaje del WebSocket:', error, '| raw:', event.data)
+          console.error('Failed to parse WebSocket message:', error, '| raw:', event.data)
         }
       }
     }
@@ -235,18 +277,16 @@ export default function AIRADashboard() {
     }
   }, [operatingMode])
 
-  // Handle operating mode selection (before login)
   const handleSelectMode = (mode: OperatingMode) => {
     setOperatingMode(mode)
     setCurrentView('login')
   }
 
-  // Handle login
   const handleLogin = () => {
     setCurrentView('dashboard')
   }
 
-  // Handle start screening - first require patient consent
+  // Validate the patient ID, then ask for consent before starting
   const handleStartScreening = () => {
     if (!patientData.cip) {
       alert('Datos incompletos - Por favor, introduzca el CIP del paciente')
@@ -255,10 +295,11 @@ export default function AIRADashboard() {
     setCurrentView('consent')
   }
 
-  // Handle consent accepted - go to the acquisition screen in "ready" state.
-  // The countdown / data capture only begins when the operator presses "Iniciar prueba".
+  // After consent, open the acquisition screen in its "ready" state.
+  // The countdown and data capture only begin when the operator presses "Iniciar prueba".
   const handleConsentAccept = () => {
     setCountdown(10)
+    setClassification(null)
     setSimulationMode(null)
     setTestStarted(false)
     isAcquiringRef.current = false
@@ -266,55 +307,57 @@ export default function AIRADashboard() {
     setCurrentView('acquisition')
   }
 
-  // Handle "Iniciar prueba" - starts the countdown and sends the start command to the ESP32
+  // Start the countdown and, in real mode, tell the ESP32 to begin streaming
   const handleStartTest = () => {
     setCountdown(10)
+    setClassification(null)
     setSensorData([])
     if (operatingMode === 'real') {
-      // Empezamos a recoger las muestras que llegan por WebSocket
+      // Start accepting samples arriving over the WebSocket
       isAcquiringRef.current = true
-      // Enviamos el comando de inicio al ESP32
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(ESP32_START_CMD)
-        console.log('[v0] Comando de inicio enviado al ESP32:', ESP32_START_CMD)
+        console.log('Start command sent to ESP32:', ESP32_START_CMD)
       } else {
-        console.log('[v0] No se pudo enviar el comando: WebSocket no conectado')
+        console.warn('Could not send start command: WebSocket not connected')
       }
     } else {
-      // Modo académico: datos de base mientras se simula
+      // Academic mode: show baseline data until a simulation profile is chosen
       setSensorData(generateSensorData(null))
     }
     setTestStarted(true)
   }
 
-  // Handle simulation buttons
+  // Academic mode only: switch to the chosen simulated profile
   const handleSimulate = (mode: 'healthy' | 'risk') => {
     setSimulationMode(mode)
     setSensorData(generateSensorData(mode))
   }
 
-  // Handle smart derivation
+  // Placeholder: only shows a confirmation, no report is actually sent yet
   const handleDerivation = () => {
     alert('Derivación inteligente enviada correctamente - El informe ha sido enviado al sistema de gestión del CAP')
   }
 
-  // Handle new screening (reset)
+  // Clear all patient and acquisition state and return to the dashboard
   const handleNewScreening = () => {
     isAcquiringRef.current = false
     setTestStarted(false)
     setPatientData({ cip: '', edad: '', genero: '', tabaquismo: false })
     setSensorData([])
     setSimulationMode(null)
+    setClassification(null)
     setCurrentView('dashboard')
   }
 
-  // Handle logout — returns to mode selection so the operating mode can be re-chosen
+  // Clear all state and return to mode selection so the mode can be re-chosen
   const handleLogout = () => {
     isAcquiringRef.current = false
     setTestStarted(false)
     setPatientData({ cip: '', edad: '', genero: '', tabaquismo: false })
     setSensorData([])
     setSimulationMode(null)
+    setClassification(null)
     setOperatingMode(null)
     setCurrentView('mode-select')
   }
@@ -361,9 +404,9 @@ export default function AIRADashboard() {
       
       {currentView === 'analyzing' && <AnalyzingView />}
 
-      {currentView === 'verdict' && (
+      {currentView === 'verdict' && classification && (
         <VerdictView
-          simulationMode={simulationMode}
+          result={classification}
           patientData={patientData}
           onDerivation={handleDerivation}
           onNewScreening={handleNewScreening}

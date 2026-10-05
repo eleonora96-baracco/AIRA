@@ -9,7 +9,6 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 export const metadata: Metadata = {
   title: 'AIRA Cloud - Sistema de Cribado Pulmonar',
   description: 'Detección temprana de cáncer de pulmón mediante análisis de aire exhalado',
-  generator: 'v0.app',
   icons: {
     icon: [
       {
